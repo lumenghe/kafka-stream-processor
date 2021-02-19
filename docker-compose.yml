@@ -1,0 +1,95 @@
+version: '3'
+services:
+  app: &app
+    build: .
+    env_file:
+      - kafka_stream_processor_dot.env
+    environment:
+      - KAFKA_STREAM_PROCESSOR_ENV
+    networks:
+      - ns
+
+  format-imports:
+    <<: *app
+    command: isort -rc kafka_stream_processor/.
+    networks:
+      - ns
+    volumes:
+      - ./:/usr/src/app
+
+  check-format-imports:
+    <<: *app
+    command: isort --check-only -rc kafka_stream_processor/.
+    depends_on: []
+
+  format:
+    <<: *app
+    command: black -l 79 --target-version py36 kafka_stream_processor tests
+    networks:
+      - ns
+    volumes:
+      - .:/usr/src/app
+
+  check-format:
+    <<: *app
+    command: black -l 79 --target-version py36 --check kafka_stream_processor tests
+    depends_on: []
+
+  style:
+    <<: *app
+    command: pylint --reports=n kafka_stream_processor
+    depends_on: []
+
+  complexity:
+    <<: *app
+    command: xenon --ignore "tests" --max-absolute C --max-modules B --max-average A .
+    depends_on: []
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - ns
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - ns
+
+  test-unit:
+    <<: *app
+    command: py.test tests/unit -vv --junitxml=reports/report_unit_tests.xml --cov . --cov-config .coveragerc --cov-report term-missing --cov-report xml:reports/coverage.xml
+    volumes:
+      - ./reports:/usr/src/app/reports
+    depends_on: []
+
+  build-package:
+    <<: *app
+    command: python setup.py sdist
+    depends_on: []
+    volumes:
+      - ./:/usr/src/app
+
+  build-clean:
+    <<: *app
+    command: rm *egg* dist/ -rfv
+    depends_on: []
+    volumes:
+      - ./:/usr/src/app
+
+  security-sast:
+    <<: *app
+    command: bandit -r kafka_stream_processor
+    depends_on: []
+
