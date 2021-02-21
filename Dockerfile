@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /usr/src/app/
 
-CMD [ "sh", "-c", "python -m kafka_streamprocessor"]
+CMD [ "sh", "-c", "python -m kafka_stream_processor"]
